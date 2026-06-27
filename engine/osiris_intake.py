@@ -1,0 +1,168 @@
+"""Pull world events from Osiris feeds and normalize them to WorldEvent.
+
+Osiris is the canonical world-event source. We read its public API routes
+(GDELT geopolitical events, conflicts, news) and turn each into a seed we can
+hand to MiroFish.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import re
+
+import httpx
+
+from .config import CONFIG
+from .models import WorldEvent
+
+log = logging.getLogger("pythia.intake")
+
+# Osiris API routes that emit world events worth simulating.
+FEEDS = [
+    ("/api/gdelt", "gdelt", "geopolitical"),
+    ("/api/conflicts", "conflicts", "conflict"),
+    ("/api/news", "news", "news"),
+    ("/api/earthquakes", "usgs", "seismic"),
+    ("/api/weather", "eonet", "weather"),
+    ("/api/fires", "firms", "wildfire"),
+    ("/api/air-quality", "openaq", "air-quality"),
+    ("/api/country-risk", "risk", "instability"),
+    ("/api/cyber-threats", "cyber", "cyber"),
+    ("/api/infrastructure", "infra", "infrastructure"),
+    ("/api/polymarket", "polymarket", "market-odds"),
+]
+
+# Words that raise an event's salience (drives auto-scan selection).
+_HOT = {
+    "war": 1.0, "attack": 0.9, "strike": 0.8, "missile": 0.95, "killed": 0.85,
+    "coup": 0.95, "invasion": 1.0, "nuclear": 1.0, "explosion": 0.8, "protest": 0.6,
+    "riot": 0.7, "election": 0.7, "ceasefire": 0.85, "sanction": 0.7, "default": 0.7,
+    "collapse": 0.8, "resign": 0.7, "earthquake": 0.7, "outbreak": 0.8, "crisis": 0.75,
+    "hurricane": 0.9, "typhoon": 0.9, "cyclone": 0.9, "tornado": 0.8, "storm": 0.7,
+    "flood": 0.8, "volcano": 0.9, "eruption": 0.9, "tsunami": 1.0, "wildfire": 0.8,
+    "breach": 0.75, "ransomware": 0.8, "famine": 0.85, "drought": 0.7, "evacuat": 0.85,
+}
+
+
+def _find_items(data) -> list[dict]:
+    """Find the first list-of-dicts in an arbitrary Osiris JSON response."""
+    if isinstance(data, list):
+        return [x for x in data if isinstance(x, dict)]
+    if isinstance(data, dict):
+        # common wrappers first
+        for key in ("events", "items", "data", "results", "features", "articles", "news", "markets"):
+            v = data.get(key)
+            if isinstance(v, list) and v and isinstance(v[0], dict):
+                return v
+        # otherwise any list-of-dicts value
+        for v in data.values():
+            if isinstance(v, list) and v and isinstance(v[0], dict):
+                return v
+    return []
+
+
+def _text(d: dict, *keys: str) -> str:
+    for k in keys:
+        v = d.get(k)
+        if isinstance(v, str) and v.strip():
+            return re.sub(r"<[^>]+>", "", v).strip()
+    return ""
+
+
+def _coord(d: dict):
+    lat = d.get("lat") or d.get("latitude")
+    lng = d.get("lng") or d.get("lon") or d.get("longitude")
+    coords = d.get("coords") or (d.get("geometry") or {}).get("coordinates")
+    if (lat is None or lng is None) and isinstance(coords, (list, tuple)) and len(coords) >= 2:
+        lng, lat = coords[0], coords[1]  # GeoJSON [lng, lat]
+    try:
+        return (float(lat), float(lng)) if lat is not None and lng is not None else (None, None)
+    except (TypeError, ValueError):
+        return (None, None)
+
+
+def _salience(title: str, summary: str, raw: dict) -> float:
+    text = f"{title} {summary}".lower()
+    score = 0.4
+    for word, weight in _HOT.items():
+        if word in text:
+            score = max(score, weight)
+    # honor an upstream risk score if Osiris provided one
+    rs = raw.get("risk_score") or raw.get("severity_score")
+    if isinstance(rs, (int, float)):
+        score = max(score, min(1.0, float(rs) / (100.0 if rs > 1 else 1.0)))
+    return round(min(1.0, score), 2)
+
+
+def _to_event(d: dict, source: str, category: str) -> WorldEvent | None:
+    title = _text(d, "title", "name", "headline", "question", "html", "place")
+    mag = d.get("magnitude") or d.get("mag")
+    if mag and _text(d, "place", "location"):
+        title = f"M{mag} — {_text(d, 'place', 'location')}"
+    if not title:
+        return None
+    summary = _text(d, "description", "summary", "snippet", "content", "machine_assessment")
+    # fold a status/severity/risk field into the summary (country-risk, weather alerts, etc.)
+    status = _text(d, "status", "level", "risk", "storm_level", "severity", "alert")
+    if status and status.lower() not in (summary or "").lower() and status.lower() not in title.lower():
+        summary = f"[{status}] {summary}".strip()
+    # Polymarket: fold the crowd probability in so the oracle sees it as an anchor
+    yp = d.get("yes_prob")
+    if yp is not None:
+        try:
+            summary = f"crowd odds: {round(float(yp) * 100)}% YES. {summary}".strip()
+        except (TypeError, ValueError):
+            pass
+    lat, lng = _coord(d)
+    return WorldEvent(
+        title=title[:240],
+        summary=summary[:2000],
+        category=(category if source == "polymarket" else (_text(d, "category") or category)),
+        source=source,
+        lat=lat,
+        lng=lng,
+        url=_text(d, "url", "link", "feed_url"),
+        salience=_salience(title, summary, d),
+        raw={k: d[k] for k in list(d)[:25]},
+    )
+
+
+class OsirisIntake:
+    def __init__(self, base_url: str | None = None):
+        self.base = (base_url or CONFIG.osiris_url).rstrip("/")
+
+    async def health(self) -> bool:
+        try:
+            async with httpx.AsyncClient(timeout=5) as c:
+                r = await c.get(f"{self.base}/api/health")
+                return r.status_code < 500
+        except httpx.HTTPError:
+            return False
+
+    async def _fetch_feed(self, c: httpx.AsyncClient, path: str, source: str, category: str) -> list[WorldEvent]:
+        out: list[WorldEvent] = []
+        try:
+            # generous: Next.js compiles each route on first hit (cold start)
+            r = await c.get(f"{self.base}{path}", timeout=20)
+            if r.status_code < 400:
+                for d in _find_items(r.json()):
+                    ev = _to_event(d, source, category)
+                    if ev:
+                        out.append(ev)
+        except (httpx.HTTPError, ValueError) as e:
+            log.debug("feed %s failed: %s", path, e)
+        return out
+
+    async def fetch(self, limit: int = 40) -> list[WorldEvent]:
+        # Fetch feeds concurrently so one slow/dead feed (e.g. GDELT) can't starve the rest.
+        async with httpx.AsyncClient(timeout=25) as c:
+            batches = await asyncio.gather(*[self._fetch_feed(c, p, s, cat) for p, s, cat in FEEDS])
+        events: list[WorldEvent] = [ev for batch in batches for ev in batch]
+        # dedupe by lowercased title, keep highest salience, sort
+        seen: dict[str, WorldEvent] = {}
+        for ev in events:
+            key = ev.title.lower()[:80]
+            if key not in seen or ev.salience > seen[key].salience:
+                seen[key] = ev
+        ranked = sorted(seen.values(), key=lambda e: e.salience, reverse=True)
+        return ranked[:limit]

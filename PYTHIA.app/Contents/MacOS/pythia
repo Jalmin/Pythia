@@ -1,0 +1,14 @@
+#!/bin/bash
+# PYTHIA.app — double-click launcher. Opens Terminal and runs the whole stack.
+# The .app bundle always *runs* on double-click (unlike a .command, which your
+# machine opens in VS Code).
+
+# pythia project dir = three levels up from this executable (MacOS -> Contents -> PYTHIA.app -> pythia)
+PYDIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+
+osascript <<EOF
+tell application "Terminal"
+    activate
+    do script "cd '$PYDIR' && ./run-all.sh"
+end tell
+EOF
