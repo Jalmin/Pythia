@@ -34,17 +34,23 @@ working install). Osiris itself is upstream — clone it separately, then apply 
 ## Edits to existing Osiris files (high level)
 - `src/app/page.tsx` — render `<PythiaStatus/>`, the floating windows, `<CreditsModal/>`;
   a right-toolbar with Layers/Chat/Markets/Alerts/PYTHIA(Eye)/Search buttons; globe-spin
-  control by the 2D/Sat toggles; route news `onWatchFeed` to floating windows; pass
-  `onLocate` to `PythiaPanel`; default the left Layers bar off (it opens as a right slideout).
+  control + a **light/dark theme toggle** (Sun) by the 2D/Sat toggles, persisted to
+  localStorage as `pythia-theme` (`'core'|'light'`); route news `onWatchFeed` to floating
+  windows; pass `onLocate` to `PythiaPanel`; default the left Layers bar off.
+- `src/app/globals.css` — **Doto** dot-matrix display/body font (`--font-display`/`--font-body`);
+  a `body.theme-light` block (soft-Apple whites/greys, frosted glass) + `.pythia-ticker-bg`.
+- `src/app/layout.tsx` — load the Doto + JetBrains Mono Google Fonts.
 - `src/components/OsirisMap.tsx` — `nws-alerts` + `frontlines` polygon sources with
   `nws-fill`/`nws-outline` and `frontline-fill`/`frontline-line` layers; a `displacement`
   source + `displacement-circles` layer (sized by people displaced); social `economy`/
   `censorship`/`health`/`unrest`/`food`/`unemployment`/`gdp`/`poverty` circle layers;
-  a `spin` prop; pitch 0.
+  a `spin` prop; pitch 0; **light theme → CARTO Positron basemap** (dark-matter otherwise,
+  switched via the `key={theme}` remount).
 - `src/components/LayerPanel.tsx` — added "Storm / Flood Zones", "Conflict / War Zones"
   and "War Front / Territory" toggles; a new SOCIAL group of 9 keyless layers (Displacement,
   Disease Outbreaks, Inflation, Censorship, Civil Unrest, Food Insecurity, Unemployment,
-  GDP Growth, Extreme Poverty); removed the SDK group and the theme toggle.
+  GDP Growth, Extreme Poverty); plus Recon Balloons, Radiation Monitors, News Intel toggles
+  (every map layer now has a toggle); removed the SDK group and the theme toggle.
 - `src/components/HeadlineTicker.tsx` rendered in `page.tsx`; mobile bottom-nav gains an
   ALERTS tab.
 - `src/app/layout.tsx` + `public/manifest.json` — PYTHIA name/icons (home-screen).

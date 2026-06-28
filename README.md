@@ -43,10 +43,11 @@ PYTHIA does. It is an **oracle**: a single surface that takes in the entire live
 - **Forecasts the future** from the live world, grouped by horizon, each prediction carrying a probability, its reasoning, and a location — **click one and the globe flies there.**
 - **Deliberates as a swarm** — a council of four specialist agents (Strategist · Economist · Naturalist · Skeptic) re-scores every forecast through its own lens. PYTHIA surfaces their **consensus *and* their dissent**, flagging the forecasts where the swarm splits.
 - **Answers questions** — a chat that can see *every* live source and its own forecasts at once.
-- **Watches everything** — world news, conflict zones, **live Ukraine territory control / war fronts** (DeepStateMap), NWS storm & flood polygons, EONET disasters, wildfires, earthquakes, cyber threats, infrastructure, **global markets** (oil, indices, commodities, crypto), and **Polymarket** crowd odds.
+- **Watches everything** — world news, conflict zones, **live Ukraine territory control / war fronts** (DeepStateMap), NWS storm & flood polygons, EONET disasters, wildfires, earthquakes, cyber threats, infrastructure, **global markets** (oil, indices, commodities, crypto), and **Polymarket** crowd odds — plus a full **social & humanitarian** layer set: displacement/refugees, disease outbreaks, civil unrest, food insecurity, inflation, unemployment, GDP, extreme poverty, and internet censorship. **Every source is free and keyless.**
 - **Surfaces headlines** — big breaking-news ticker along the bottom; risk overlays drawn as outlined zones on the map.
 - **Is a cockpit, not a page** — pull up news feeds and chat as movable, resizable windows around a spinning globe (manual or event-snapping spin), and watch the world go on.
 - **Picks its own brain** — switch between any model installed in [Ollama](https://ollama.com) from the UI.
+- **Looks how you like** — a soft **light mode** (Apple-style whites & greys, frosted glass) or the deep-dark oracle theme, a dot-matrix display font, and a toggle for every live layer. *Hide a layer from the map and the oracle still watches it* — visibility is cosmetic; the engine ingests every feed regardless.
 - **Opens its eyes to your agents** — a clean machine-readable API exposes the whole world view (see below).
 
 ## Agent API

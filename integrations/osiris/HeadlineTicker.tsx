@@ -43,8 +43,8 @@ export default function HeadlineTicker() {
 
   return (
     <div className="hidden md:block absolute bottom-0 left-0 right-0 z-[199] pointer-events-none">
-      <div className="h-[30px] overflow-hidden bg-black/90 border-t border-[var(--gold-primary)]/45 flex items-center text-[12px] backdrop-blur-md" style={{ boxShadow: '0 -6px 24px rgba(154,123,255,0.14)' }}>
-        <div className="flex-shrink-0 px-3 h-full flex items-center gap-1.5 border-r border-[var(--gold-primary)]/40 bg-black relative z-10 shadow-[4px_0_10px_rgba(0,0,0,0.5)]">
+      <div className="pythia-ticker-bg h-[30px] overflow-hidden bg-black/90 border-t border-[var(--gold-primary)]/45 flex items-center text-[12px] backdrop-blur-md" style={{ boxShadow: '0 -6px 24px rgba(154,123,255,0.14)' }}>
+        <div className="pythia-ticker-bg flex-shrink-0 px-3 h-full flex items-center gap-1.5 border-r border-[var(--gold-primary)]/40 bg-black relative z-10 shadow-[4px_0_10px_rgba(0,0,0,0.5)]">
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--alert-red)] animate-pulse" />
           <span className="pythia-display text-[10px] font-bold tracking-[0.25em] text-[var(--gold-primary)]">WORLD</span>
         </div>
