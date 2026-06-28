@@ -38,6 +38,8 @@ FEEDS = [
     ("/api/censorship", "ooni", "censorship"),
     ("/api/health-outbreaks", "who", "health"),
     ("/api/unrest", "unrest", "unrest"),
+    ("/api/food-security", "hungermap", "food"),
+    ("/api/unemployment", "wb-unemployment", "economy"),
 ]
 
 # Words that raise an event's salience (drives auto-scan selection).
@@ -255,6 +257,10 @@ class OsirisIntake:
                     out.extend(_health_events(data))
                 elif source == "unrest":
                     out.extend(_unrest_events(data))
+                elif source == "hungermap":
+                    out.extend(_summary_signal(data, "hungermap", "food", "Food insecurity — worst-hit"))
+                elif source == "wb-unemployment":
+                    out.extend(_summary_signal(data, "wb-unemployment", "economy", "Unemployment — highest"))
                 else:
                     for d in _find_items(data):
                         ev = _to_event(d, source, category)

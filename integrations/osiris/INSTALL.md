@@ -25,6 +25,8 @@ working install). Osiris itself is upstream — clone it separately, then apply 
 | `routes/censorship-route.ts` | `src/app/api/censorship/route.ts` — internet censorship anomalies (OONI, no key) |
 | `routes/health-outbreaks-route.ts` | `src/app/api/health-outbreaks/route.ts` — disease outbreaks (WHO, no key) |
 | `routes/unrest-route.ts` | `src/app/api/unrest/route.ts` — civil unrest / protests (GDELT events, no key, no deps) |
+| `routes/food-security-route.ts` | `src/app/api/food-security/route.ts` — food insecurity (WFP HungerMap, no key) |
+| `routes/unemployment-route.ts` | `src/app/api/unemployment/route.ts` — unemployment (World Bank, no key) |
 | `lib/countryCentroids.ts` | `src/lib/countryCentroids.ts` — shared ISO3/ISO2/name → centroid for country layers |
 
 ## Edits to existing Osiris files (high level)
@@ -35,11 +37,11 @@ working install). Osiris itself is upstream — clone it separately, then apply 
 - `src/components/OsirisMap.tsx` — `nws-alerts` + `frontlines` polygon sources with
   `nws-fill`/`nws-outline` and `frontline-fill`/`frontline-line` layers; a `displacement`
   source + `displacement-circles` layer (sized by people displaced); social `economy`/
-  `censorship`/`health`/`unrest` circle layers; a `spin` prop (rotate/smart); pitch 0.
+  `censorship`/`health`/`unrest`/`food`/`unemployment` circle layers; a `spin` prop; pitch 0.
 - `src/components/LayerPanel.tsx` — added "Storm / Flood Zones", "Conflict / War Zones"
   and "War Front / Territory" toggles; a new SOCIAL group (Displacement / Refugees,
   Disease Outbreaks, Cost of Living / Inflation, Internet Censorship, Civil Unrest /
-  Protests); removed the SDK group and the theme toggle.
+  Protests, Food Insecurity, Unemployment); removed the SDK group and the theme toggle.
 - `src/components/HeadlineTicker.tsx` rendered in `page.tsx`; mobile bottom-nav gains an
   ALERTS tab.
 - `src/app/layout.tsx` + `public/manifest.json` — PYTHIA name/icons (home-screen).
