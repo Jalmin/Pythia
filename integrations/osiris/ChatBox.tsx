@@ -23,9 +23,20 @@ export default function ChatBox() {
     setMsgs((m) => [...m, { role: 'user', content: q }]);
     setBusy(true);
     try {
-      const r = await fetch('/api/engine/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: q, history }) });
-      const j = await r.json();
-      setMsgs((m) => [...m, { role: 'assistant', content: j.answer || j.error || 'no response' }]);
+      // counterfactual mode: "/whatif the Strait of Hormuz closes tonight"
+      const scenario = q.toLowerCase().startsWith('/whatif') ? q.slice(7).trim() : null;
+      if (scenario) {
+        const r = await fetch('/api/engine/whatif', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scenario }) });
+        const j = await r.json();
+        const preds = (j.predictions || [])
+          .map((p: any) => `• [${p.horizon}] ${Math.round(p.probability * 100)}% — ${p.statement}${p.location ? ` (${p.location})` : ''}`)
+          .join('\n');
+        setMsgs((m) => [...m, { role: 'assistant', content: `🔮 WHAT IF: ${j.scenario}\n\n${j.narrative || ''}${preds ? `\n\n${preds}` : ''}`.trim() || j.error || 'no response' }]);
+      } else {
+        const r = await fetch('/api/engine/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: q, history }) });
+        const j = await r.json();
+        setMsgs((m) => [...m, { role: 'assistant', content: j.answer || j.error || 'no response' }]);
+      }
     } catch {
       setMsgs((m) => [...m, { role: 'assistant', content: '⚠ engine unreachable — is PYTHIA running?' }]);
     } finally {
@@ -50,7 +61,7 @@ export default function ChatBox() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
-          placeholder="Ask the oracle…"
+          placeholder="Ask the oracle… (or: /whatif the Strait of Hormuz closes)"
           className="flex-1 bg-[var(--hover-accent)] rounded-lg px-2.5 py-1.5 text-[11px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)]"
         />
         <button onClick={send} disabled={busy} className="p-1.5 rounded-lg disabled:opacity-50" style={{ background: 'rgba(154,123,255,.22)', color: 'var(--gold-primary)' }}><Send className="w-3.5 h-3.5" /></button>

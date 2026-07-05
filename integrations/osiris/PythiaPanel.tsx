@@ -7,12 +7,13 @@
  */
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Eye, Sparkles, Radio, Loader2, Globe2, Hexagon } from 'lucide-react';
+import { Eye, Sparkles, Radio, Loader2, Globe2, Hexagon, Target } from 'lucide-react';
 import DeliberationModal from './DeliberationModal';
 import SwarmConfig from './SwarmConfig';
+import ScorecardPanel from './ScorecardPanel';
 
 type Agent = { name: string; probability: number; note?: string };
-type Prediction = { id: string; statement: string; horizon: string; probability: number; reasoning: string; location?: string; lat?: number | null; lng?: number | null; agents?: Agent[]; base_probability?: number | null; split?: boolean };
+type Prediction = { id: string; statement: string; horizon: string; probability: number; reasoning: string; location?: string; lat?: number | null; lng?: number | null; agents?: Agent[]; base_probability?: number | null; prev_probability?: number | null; split?: boolean };
 type World = { event_count: number; domains: Record<string, number>; top_events: string[] };
 type Run = { stage: string; trigger: string; error?: string; elapsed_ms?: number };
 type Snap = {
@@ -50,6 +51,7 @@ export default function PythiaPanel({ mobile = false, onLocate }: { mobile?: boo
   const [connected, setConnected] = useState(false);
   const [selected, setSelected] = useState<Prediction | null>(null);
   const [showSwarm, setShowSwarm] = useState(false);
+  const [showScore, setShowScore] = useState(false);
   const [score, setScore] = useState<Score | null>(null);
 
   useEffect(() => {
@@ -106,6 +108,9 @@ export default function PythiaPanel({ mobile = false, onLocate }: { mobile?: boo
         </div>
         <div className="flex items-center gap-2">
           <span title={connected ? 'engine connected' : 'engine offline'} className="w-1.5 h-1.5 rounded-full" style={{ background: connected ? 'var(--cyan-primary)' : 'var(--alert-red)' }} />
+          <button onClick={() => setShowScore((s) => !s)} title="Track record — Brier score, calibration, verdicts" className="flex items-center px-1.5 py-0.5 rounded" style={{ background: showScore ? 'rgba(154,123,255,.2)' : 'rgba(255,255,255,.05)', color: showScore ? 'var(--gold-primary)' : 'var(--text-muted)' }}>
+            <Target className="w-3 h-3" />
+          </button>
           <button onClick={() => setShowSwarm((s) => !s)} title="Swarm models — pick a model for each persona" className="flex items-center px-1.5 py-0.5 rounded" style={{ background: showSwarm ? 'rgba(154,123,255,.2)' : 'rgba(255,255,255,.05)', color: showSwarm ? 'var(--gold-primary)' : 'var(--text-muted)' }}>
             <Hexagon className="w-3 h-3" />
           </button>
@@ -136,6 +141,7 @@ export default function PythiaPanel({ mobile = false, onLocate }: { mobile?: boo
       ) : null}
 
       {showSwarm && <SwarmConfig />}
+      {showScore && <ScorecardPanel />}
 
       {/* Predictions */}
       <div className={mobile ? 'flex flex-col gap-3' : 'overflow-y-auto flex flex-col gap-3 pr-1'}>
@@ -164,7 +170,15 @@ export default function PythiaPanel({ mobile = false, onLocate }: { mobile?: boo
                   style={{ background: 'rgba(255,255,255,.02)' }}>
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-[10px] text-[var(--text-primary)] leading-snug">{p.statement}</span>
-                    <span className="text-[11px] font-mono font-bold shrink-0 flex items-center gap-1" style={{ color: h.color }}>{p.split && <span title="the swarm disagrees sharply" style={{ color: 'var(--alert-red)', fontSize: 8 }}>⚠</span>}{Math.round(p.probability * 100)}%</span>
+                    <span className="text-[11px] font-mono font-bold shrink-0 flex items-center gap-1" style={{ color: h.color }}>
+                      {p.split && <span title="the swarm disagrees sharply" style={{ color: 'var(--alert-red)', fontSize: 8 }}>⚠</span>}
+                      {p.prev_probability != null && Math.abs(p.probability - p.prev_probability) >= 0.03 && (
+                        <span title={`was ${Math.round(p.prev_probability * 100)}% last pass`} style={{ fontSize: 8, color: p.probability > p.prev_probability ? 'var(--alert-red)' : 'var(--cyan-primary)' }}>
+                          {p.probability > p.prev_probability ? '▲' : '▼'}{Math.abs(Math.round((p.probability - p.prev_probability) * 100))}
+                        </span>
+                      )}
+                      {Math.round(p.probability * 100)}%
+                    </span>
                   </div>
                   <div className="h-1 rounded-full bg-[var(--hover-accent)] mt-1.5 overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${Math.round(p.probability * 100)}%`, background: h.color }} />

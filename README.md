@@ -46,11 +46,14 @@ PYTHIA does. It is an **oracle**: a single surface that takes in the entire live
 ## What PYTHIA does
 
 - **Forecasts the future** from the live world, grouped by horizon, each prediction carrying a probability, its reasoning, and a location — **click one and the globe flies there.**
-- **Draws the future on the globe** — every located forecast becomes a pulsing **forecast ring** (sized by probability, colored by horizon) so the map shows the *next 7 days*, not just the present. Click a ring to read the prophecy; flip on month/year rings from the ORACLE layer group.
-- **Keeps score in public** — every forecast goes on the record the moment it's made (`runs/ledger.jsonl`). When its horizon expires an LLM judge grades it against the archived world, and the deck shows the running **Brier score, hit rate and calibration** — per horizon *and per swarm persona*. The oracle is accountable.
+- **Draws the future on the globe** — every located forecast becomes a pulsing **forecast ring** (sized by probability, colored by horizon) so the map shows the *next 7 days*, not just the present. Click a ring to read the prophecy; flip on month/year rings from the ORACLE layer group. **Hurricane forecast cones** (NHC) and a **30-day flood outlook** (Copernicus GloFAS river-discharge forecasts for 22 major basins) draw nature's own futures alongside.
+- **Keeps score in public** — every forecast goes on the record the moment it's made (`runs/ledger.jsonl`). When its horizon expires an LLM judge grades it against the archived world. The deck's **track-record panel** (the target button) shows the running **Brier score, hit rate, a calibration chart, and recent verdicts** — per horizon, per swarm persona, *and per local model* (a live model bake-off). Forecasts that persist across passes show their **momentum** (▲▼ probability drift).
+- **Learns from its record** — the swarm's consensus is **Brier-weighted**: once a persona has enough resolved forecasts, its vote counts for more (or less) based on how right it has actually been.
+- **Answers "what if?"** — type `/whatif the Strait of Hormuz closes` in chat (or `POST /whatif`) and the oracle injects the hypothetical into the live world and forecasts the knock-on effects. Ephemeral — counterfactuals never touch the track record.
+- **Pushes, not just serves** — register a **webhook** and the engine POSTs you high-probability forecasts after each pass and fresh high-salience world events as they appear.
 - **Deliberates as a swarm** — a council of four specialist agents (Strategist · Economist · Naturalist · Skeptic) re-scores every forecast through its own lens. PYTHIA surfaces their **consensus *and* their dissent**, flagging the forecasts where the swarm splits.
 - **Answers questions** — a chat that can see *every* live source and its own forecasts at once.
-- **Watches everything** — world news, conflict zones, **live Ukraine territory control / war fronts** (DeepStateMap), NWS storm & flood polygons, EONET disasters, wildfires, earthquakes, cyber threats, infrastructure, **global markets** (oil, indices, commodities, crypto), **futures & term structure** (WTI/Brent/gas/gold/grains/equity futures + the VIX, with a ~6-month contango/backwardation read — the market's own forecast, geo-anchored to the supply regions that drive it), and **Polymarket** crowd odds — plus a full **social & humanitarian** layer set: displacement/refugees, disease outbreaks, civil unrest, food insecurity, inflation, unemployment, GDP, extreme poverty, and internet censorship. **Every source is free and keyless.**
+- **Watches everything** — world news, conflict zones, **live Ukraine territory control / war fronts** (DeepStateMap), NWS storm & flood polygons, EONET disasters, wildfires, earthquakes, cyber threats, infrastructure, **global markets** (oil, indices, commodities, crypto), **futures & term structure** (WTI/Brent/gas/gold/grains/equity futures + the VIX, with a ~6-month contango/backwardation read — the market's own forecast, geo-anchored to the supply regions that drive it), and **Polymarket + Manifold** crowd odds — plus **GDACS disaster alerts** (Red/Orange/Green), **NHC hurricanes**, the **GloFAS flood outlook**, **internet outages** (IODA — a country going dark is often the first coup signal), **space weather** (NOAA SWPC), **Wikipedia attention spikes** (what humanity suddenly cares about), and a full **social & humanitarian** layer set: displacement/refugees, disease outbreaks, civil unrest, food insecurity, inflation, unemployment, GDP, extreme poverty, and internet censorship. **Every source is free and keyless.**
 - **Surfaces headlines** — big breaking-news ticker along the bottom; risk overlays drawn as outlined zones on the map.
 - **Is a cockpit, not a page** — pull up news feeds and chat as movable, resizable windows around a spinning globe (manual or event-snapping spin), and watch the world go on.
 - **Picks its own brain** — switch between any model installed in [Ollama](https://ollama.com) from the UI.
@@ -72,7 +75,7 @@ Every forecast is re-judged by a council of four specialist agents, each reasoni
 
 Click any prediction to open its deliberation: a **consensus gauge**, an **agreement spectrum** showing where each agent landed, every agent's vote and its one-to-two-sentence argument, and the shift from the oracle's first guess to the swarm consensus. Sharp disagreement is flagged as a **split**. It all runs locally on your Ollama model — no Zep, no cloud.
 
-**Give each persona its own brain.** The hexagon button on the deck opens the swarm model picker — assign any installed Ollama model per persona (a big model for the Strategist, a fast one for the Skeptic…). Every vote in the deliberation is tagged with the model that cast it, picks survive engine restarts (`runs/swarm_models.json`), and you can seed them from `.env`: `SWARM_MODELS=Strategist=llama3.1:70b,Skeptic=qwen3:8b`. Since the ledger records each vote's model, the `/scorecard` per-persona Brier scores double as a live **model bake-off** on real-world forecasting.
+**Give each persona its own brain.** The hexagon button on the deck opens the swarm model picker — assign any installed Ollama model per persona (a big model for the Strategist, a fast one for the Skeptic…). Every vote in the deliberation is tagged with the model that cast it, picks survive engine restarts (`runs/swarm_models.json`), and you can seed them from `.env`: `SWARM_MODELS=Strategist=llama3.1:70b,Skeptic=qwen3:8b`. Since the ledger records each vote's model, the `/scorecard` per-persona Brier scores double as a live **model bake-off** on real-world forecasting. And the record feeds back: consensus is **Brier-weighted**, so a persona that keeps being right gets a louder vote (clamped — no voice ever dominates or vanishes).
 
 ## Everything it watches — free & keyless
 
@@ -149,8 +152,10 @@ One JSON payload = your agent's situational awareness: a prose **summary** of th
 | `GET /swarm/models` | — | swarm personas, per-persona model overrides, the default model, and the models available |
 | `POST /swarm/model` | `{ "persona": "Skeptic", "model": "qwen3:8b" }` | give one persona its own model (empty `model` = back to the main one); persisted across restarts |
 | `POST /loop` | `{ "enabled": true }` | toggle continuous auto-forecasting |
-| `GET /scorecard` | — | **the track record** — Brier score, hit rate, per-horizon + per-persona accuracy, calibration bins, recent resolutions |
+| `GET /scorecard` | — | **the track record** — Brier score, hit rate, per-horizon / per-persona / **per-model** accuracy, calibration bins, recent resolutions |
 | `POST /scorecard/resolve` | — | grade any due forecasts now (instead of waiting for the hourly judge) |
+| `POST /whatif` | `{ "scenario": "the Strait of Hormuz closes tonight" }` | counterfactual forecast — `{scenario, narrative, predictions}`; ephemeral, never ledgered |
+| `GET /webhooks` · `POST /webhooks` · `DELETE /webhooks?url=` | `{ "url", "min_probability": 0.7, "min_salience": 0.85 }` | outbound push — the engine POSTs `{kind: "forecasts"\|"events", …}` when thresholds are crossed |
 | `GET /docs` · `GET /openapi.json` | — | interactive Swagger UI + the full **OpenAPI spec** (self-discovery) |
 
 ### Object shapes
@@ -161,7 +166,7 @@ One JSON payload = your agent's situational awareness: a prose **summary** of th
 
 The whole Agent API is also exposed as an **MCP server** (stdio), so Claude Code, Claude
 Desktop, or any MCP client gets PYTHIA as native tools — `world_brief`, `get_events`,
-`get_predictions`, `predict_now`, `ask_oracle`, `get_scorecard`:
+`get_predictions`, `predict_now`, `ask_oracle`, `what_if`, `get_scorecard`:
 
 ```bash
 # Claude Code (engine must be running):

@@ -12,6 +12,7 @@ working install). Osiris itself is upstream — clone it separately, then apply 
 | `DeliberationModal.tsx` | `src/components/DeliberationModal.tsx` — swarm deliberation popup (gauge + per-agent votes) |
 | `PythiaStatus.tsx` | `src/components/PythiaStatus.tsx` — top-right status + model picker |
 | `SwarmConfig.tsx` | `src/components/SwarmConfig.tsx` — per-persona swarm model picker (opened from the deck's hexagon button) |
+| `ScorecardPanel.tsx` | `src/components/ScorecardPanel.tsx` — track record panel (opened from the deck's target button): Brier + hit rate, calibration chart, per-horizon/persona/model tables, recent verdicts |
 | `CreditsModal.tsx` | `src/components/CreditsModal.tsx` — credits |
 | `FloatingWindow.tsx` | `src/components/FloatingWindow.tsx` — movable/resizable window shell |
 | `ChatBox.tsx` | `src/components/ChatBox.tsx` — chat with the oracle |
@@ -20,6 +21,12 @@ working install). Osiris itself is upstream — clone it separately, then apply 
 | `routes/engine-proxy-route.ts` | `src/app/api/engine/[...path]/route.ts` — same-origin proxy to the engine |
 | `routes/polymarket-route.ts` | `src/app/api/polymarket/route.ts` — Polymarket crowd odds |
 | `routes/futures-route.ts` | `src/app/api/futures/route.ts` — futures + term structure (Yahoo chart API, no key): oil, gas, gold, grains, equity futures, VIX; ~6-month curve read (contango/backwardation); geo-anchored to supply regions |
+| `routes/gdacs-alerts-route.ts` | `src/app/api/gdacs-alerts/route.ts` — GDACS disaster alerts (UN, no key): Red/Orange/Green severity + coords (bbox-center fallback for polygon episodes) |
+| `routes/hurricanes-route.ts` | `src/app/api/hurricanes/route.ts` — NHC active storms + forecast-cone GeoJSON (no key) |
+| `routes/flood-outlook-route.ts` | `src/app/api/flood-outlook/route.ts` — 30-day flood outlook for 22 major basins (Open-Meteo GloFAS, no key): forecast discharge vs recent median |
+| `routes/wiki-attention-route.ts` | `src/app/api/wiki-attention/route.ts` — Wikipedia attention spikes (Wikimedia pageviews, no key) |
+| `routes/manifold-route.ts` | `src/app/api/manifold/route.ts` — Manifold Markets crowd odds (no key; Metaculus dropped — its API now needs a token) |
+| `routes/ioda-route.ts` | `src/app/api/ioda/route.ts` — country-level internet outages, last 24h (IODA / Georgia Tech, no key) |
 | `routes/nws-alerts-route.ts` | `src/app/api/nws-alerts/route.ts` — NWS storm/flood polygon zones |
 | `routes/frontlines-route.ts` | `src/app/api/frontlines/route.ts` — Ukraine territory control (DeepStateMap, no key) |
 | `routes/displacement-route.ts` | `src/app/api/displacement/route.ts` — forced displacement / refugees (UNHCR, no key) |
@@ -42,6 +49,9 @@ working install). Osiris itself is upstream — clone it separately, then apply 
   **Forecast rings:** poll `/api/engine/predictions` (once on load + every 30s) into
   `data.pythia_predictions`, and add `predictions: true` / `predictions_all: false`
   to `activeLayers`.
+  **Hurricanes + flood:** `hurricanes: true` / `flood: true` in `activeLayers`, with
+  layer-aware fetches of `/api/hurricanes` → `data.hurricanes` and `/api/flood-outlook`
+  → `data.flood`.
 - `src/app/globals.css` — **Doto** dot-matrix display/body font (`--font-display`/`--font-body`);
   a `body.theme-light` block (soft-Apple whites/greys, frosted glass) + `.pythia-ticker-bg`.
 - `src/app/layout.tsx` — load the Doto + JetBrains Mono Google Fonts.
@@ -58,6 +68,10 @@ working install). Osiris itself is upstream — clone it separately, then apply 
   statement, reasoning, location and a swarm-split warning. Features come from
   `data.pythia_predictions`, filtered to 24h+week ("next 7 days") unless
   `activeLayers.predictions_all` is on.
+  **Hurricanes + flood:** `hurricanes` + `flood` geojson sources; NHC cones as dashed
+  red `hurr-cone-fill`/`hurr-cone-line` polygons with `hurr-center`/`hurr-label` storm
+  points, and `flood-circles` sized/shaded by the GloFAS risk ratio (≥1.5 shown);
+  click popups for both.
 - `src/components/LayerPanel.tsx` — added "Storm / Flood Zones", "Conflict / War Zones"
   and "War Front / Territory" toggles; a new SOCIAL group of 9 keyless layers (Displacement,
   Disease Outbreaks, Inflation, Censorship, Civil Unrest, Food Insecurity, Unemployment,
@@ -65,6 +79,8 @@ working install). Osiris itself is upstream — clone it separately, then apply 
   (every map layer now has a toggle); removed the SDK group and the theme toggle.
   **Forecast rings:** an ORACLE / "PYTHIA FORECAST" group at the top with
   "Forecast Rings (7 Days)" (`predictions`) and "+ Month / Year Rings" (`predictions_all`).
+  **Hazards:** "Hurricane Cones (NHC)" (`hurricanes`) and "Flood Outlook (30d)" (`flood`)
+  in the HAZARD group.
 - `src/components/HeadlineTicker.tsx` rendered in `page.tsx`; mobile bottom-nav gains an
   ALERTS tab.
 - `src/app/layout.tsx` + `public/manifest.json` — PYTHIA name/icons (home-screen).
