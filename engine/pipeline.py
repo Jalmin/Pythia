@@ -57,9 +57,10 @@ def _carry_momentum(old: list[Prediction], new: list[Prediction]) -> None:
 async def refresh_world() -> int:
     """Cheap sensing pass — refresh live events + brief WITHOUT calling the LLM.
     Keeps the agent view and oracle context current between forecasts."""
+    from .config import CONFIG
     from .runtime import intake, ledger
     try:
-        events = await intake.fetch(limit=250)
+        events = await intake.fetch(limit=CONFIG.event_cap)
         STATE.events = events
         brief = build_brief(events)
         STATE.set_world(brief)
@@ -90,7 +91,8 @@ async def run_prediction(trigger: str = "manual") -> RunRecord:
             await stage("sensing", "reading Osiris feeds")
             # high cap so no single source (weather alerts, news) starves the others;
             # build_brief then takes the top few per domain.
-            events = await intake.fetch(limit=250)
+            from .config import CONFIG
+            events = await intake.fetch(limit=CONFIG.event_cap)
             STATE.events = events
             brief = build_brief(events)
             run.brief = brief
