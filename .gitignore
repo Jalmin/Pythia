@@ -8,3 +8,4 @@ runs/*.jsonl
 # raw screen recording — the compressed screenshots/demo.mp4 is committed instead
 Screen Recording.mov
 *.mov
+runs/*.json

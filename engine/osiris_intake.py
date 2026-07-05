@@ -31,6 +31,7 @@ FEEDS = [
     ("/api/infrastructure", "infra", "infrastructure"),
     ("/api/polymarket", "polymarket", "market-odds"),
     ("/api/markets", "markets", "markets"),
+    ("/api/futures", "futures", "futures"),
     ("/api/crypto", "crypto", "markets"),
     ("/api/frontlines", "frontlines", "conflict"),
     ("/api/displacement", "unhcr", "displacement"),
@@ -164,6 +165,42 @@ def _markets_events(data: dict, source: str) -> list[WorldEvent]:
     return out
 
 
+def _futures_events(data: dict) -> list[WorldEvent]:
+    """Futures + term structure → forward-looking market events, geo-anchored to
+    supply regions. Backwardation (near > far) is a physical-tightness signal."""
+    out: list[WorldEvent] = []
+    for f in (data or {}).get("futures", []):
+        if not isinstance(f, dict) or f.get("price") is None:
+            continue
+        try:
+            chg = float(f.get("change_percent") or 0)
+        except (TypeError, ValueError):
+            chg = 0.0
+        unit = f" {f['unit']}" if f.get("unit") else ""
+        sign = "+" if chg >= 0 else ""
+        bits = [f"{f.get('name') or f.get('symbol')}: {f['price']}{unit} ({sign}{chg}%)"]
+        sal = 0.45 + abs(chg) / 10
+        curve = f.get("curve") or {}
+        if curve.get("structure"):
+            sp = curve.get("spread_pct", 0)
+            bits.append(f"6-mo curve in {curve['structure']} ({'+' if sp >= 0 else ''}{sp}%)")
+            if curve["structure"] == "backwardation":
+                sal += 0.15
+        if f.get("symbol") == "^VIX":
+            try:
+                sal = max(sal, min(1.0, float(f["price"]) / 40))  # VIX 40 ≈ full alarm
+            except (TypeError, ValueError):
+                pass
+        out.append(WorldEvent(
+            title=" — ".join(bits)[:200],
+            summary=f"Supply-region anchor: {f['region']}" if f.get("region") else "",
+            category="futures", source="futures",
+            lat=f.get("lat"), lng=f.get("lng"),
+            salience=round(min(1.0, sal), 2),
+        ))
+    return out
+
+
 def _frontline_events(data: dict) -> list[WorldEvent]:
     """Summarize the DeepStateMap territory GeoJSON into a single oracle signal."""
     feats = (data or {}).get("features") or []
@@ -247,6 +284,8 @@ class OsirisIntake:
                 data = r.json()
                 if source in ("markets", "crypto"):
                     out.extend(_markets_events(data, source))
+                elif source == "futures":
+                    out.extend(_futures_events(data))
                 elif source == "frontlines":
                     out.extend(_frontline_events(data))
                 elif source == "unhcr":
