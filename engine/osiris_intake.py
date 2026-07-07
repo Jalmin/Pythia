@@ -51,6 +51,7 @@ FEEDS = [
     ("/api/gdp-growth", "wb-gdp", "economy"),
     ("/api/poverty", "wb-poverty", "economy"),
     ("/api/local-news", "brief-matinal", "news"),  # T4 — greffe scraper labo FR/EU (adapter interne, salience FR via risk_score)
+    ("/api/enriched-news", "enriched-news", "news"),  # T8 — plein-texte des events chauds, scrapés par l'adapter labo
 ]
 
 # Words that raise an event's salience (drives auto-scan selection).
