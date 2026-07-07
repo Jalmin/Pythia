@@ -69,6 +69,13 @@ class Config:
     llm_base_url: str = field(default_factory=lambda: os.environ.get("LLM_BASE_URL") or _MF.get("LLM_BASE_URL") or "http://localhost:11434/v1")
     llm_api_key: str = field(default_factory=lambda: os.environ.get("LLM_API_KEY") or _MF.get("LLM_API_KEY") or "ollama")
     llm_model: str = field(default_factory=lambda: os.environ.get("LLM_MODEL") or _MF.get("LLM_MODEL_NAME") or "llama3.1")
+    # Judge model — separate frontier LLM to score the scorecard (defaults to llm_model if unset).
+    judge_model: str = field(default_factory=lambda: (
+        os.environ.get("JUDGE_MODEL")
+        or os.environ.get("LLM_MODEL")
+        or _MF.get("LLM_MODEL_NAME")
+        or "llama3.1"
+    ))
     temperature: float = field(default_factory=lambda: _f("ORACLE_TEMPERATURE", 0.5))
     request_timeout: int = field(default_factory=lambda: _i("ORACLE_TIMEOUT_SEC", 180))
 
@@ -100,6 +107,7 @@ class Config:
             "osiris_url": self.osiris_url,
             "llm_base_url": self.llm_base_url,
             "llm_model": self.llm_model,
+            "judge_model": self.judge_model,
             "horizons": self.horizons,
             "loop_interval_sec": self.loop_interval_sec,
             "event_cap": self.event_cap,

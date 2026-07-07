@@ -148,7 +148,8 @@ class Oracle:
         )
         sys = "You are a strict, impartial resolution judge for a forecasting system. Output strictly JSON."
         text = await self._complete([{"role": "system", "content": sys},
-                                     {"role": "user", "content": prompt}], 220)
+                                     {"role": "user", "content": prompt}], 220,
+                                    model=CONFIG.judge_model)
         for chunk in self._extract_objects(text):
             try:
                 d = json.loads(chunk)
