@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Awaitable, Callable, Optional
 
 import httpx
@@ -16,6 +17,23 @@ from .models import Prediction, WorldBrief
 
 log = logging.getLogger("pythia.oracle")
 StageCB = Optional[Callable[[str, str], Awaitable[None]]]
+
+
+def _log_llm_usage(model: str, usage: dict, latency_ms: int) -> None:
+    """Append one JSONL row per LLM call. Never raises — logging failures must not break inference."""
+    try:
+        CONFIG.runs_dir.mkdir(parents=True, exist_ok=True)
+        row = {
+            "ts": int(time.time() * 1000),
+            "model": model,
+            "prompt_tokens": int(usage.get("prompt_tokens", -1) or -1),
+            "completion_tokens": int(usage.get("completion_tokens", -1) or -1),
+            "latency_ms": latency_ms,
+        }
+        with (CONFIG.runs_dir / "llm_usage.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps(row, separators=(",", ":")) + "\n")
+    except Exception as e:  # noqa: BLE001 — usage logging must never break an LLM call
+        log.warning("llm_usage log skipped: %s", e)
 
 SYSTEM = (
     "You are PYTHIA, a forecasting oracle. You watch a live snapshot of world activity "
@@ -98,12 +116,18 @@ class Oracle:
         return await self._complete([{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}], 1400)
 
     async def _complete(self, messages: list[dict], max_tokens: int = 900, model: str | None = None) -> str:
-        body = {"model": model or self.model, "messages": messages, "temperature": CONFIG.temperature, "max_tokens": max_tokens}
+        used_model = model or self.model
+        body = {"model": used_model, "messages": messages, "temperature": CONFIG.temperature, "max_tokens": max_tokens}
+        t0 = time.monotonic()
         async with httpx.AsyncClient(verify=HTTPX_VERIFY, timeout=CONFIG.request_timeout) as c:
             r = await c.post(f"{self.base}/chat/completions", json=body,
                              headers={"Authorization": f"Bearer {self.key}"})
             r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"]
+            data = r.json()
+        latency_ms = int((time.monotonic() - t0) * 1000)
+        usage = data.get("usage") or {}
+        _log_llm_usage(used_model, usage, latency_ms)
+        return data["choices"][0]["message"]["content"]
 
     async def chat(self, question: str, brief, predictions, history=None) -> str:
         """Answer a free-form question grounded in EVERY live source + current predictions."""
