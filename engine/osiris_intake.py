@@ -52,6 +52,10 @@ FEEDS = [
     ("/api/poverty", "wb-poverty", "economy"),
     ("/api/local-news", "brief-matinal", "news"),  # T4 — greffe scraper labo FR/EU (adapter interne, salience FR via risk_score)
     ("/api/enriched-news", "enriched-news", "news"),  # T8 — plein-texte des events chauds, scrapés par l'adapter labo
+    # --- Flux finance FMP (payant) : événements falsifiables datés, saillance via risk_score ---
+    ("/api/fmp-econ-calendar", "fmp-econ", "economy"),   # calendrier éco high-impact (CPI, Fed, chômage…) — risk_score 80
+    ("/api/fmp-earnings", "fmp-earnings", "markets"),     # résultats grosses caps US — risk_score 70
+    ("/api/fmp-news", "fmp-news", "markets"),             # news finance FMP — risk_score 65
 ]
 
 # Words that raise an event's salience (drives auto-scan selection).
