@@ -55,15 +55,48 @@ FEEDS = [
 ]
 
 # Words that raise an event's salience (drives auto-scan selection).
+# Matching is word-boundary based (see _HOT_PATTERNS / _salience): short keys
+# (≤5) match whole-word only (`\bwar\b`, so no "warning"/"turmoil"); longer keys
+# match as a prefix (`\bsanction`, so "sanctions"/"attacked" still count). Add a
+# dedicated key when a war/finance term is a SUFFIX of a compound (e.g.
+# "airstrike" — `\bstrike` alone would miss it). Never bare "fed"/"rate"/"bond".
 _HOT = {
-    "war": 1.0, "attack": 0.9, "strike": 0.8, "missile": 0.95, "killed": 0.85,
+    # --- Geopolitics / breaking news (unchanged: this is the actualité focus) ---
+    "war": 1.0, "attack": 0.9, "strike": 0.8, "airstrike": 0.85, "missile": 0.95,
+    "counterattack": 0.9, "killed": 0.85,
     "coup": 0.95, "invasion": 1.0, "nuclear": 1.0, "explosion": 0.8, "protest": 0.6,
     "riot": 0.7, "election": 0.7, "ceasefire": 0.85, "sanction": 0.7, "default": 0.7,
-    "collapse": 0.8, "resign": 0.7, "earthquake": 0.7, "outbreak": 0.8, "crisis": 0.75,
-    "hurricane": 0.9, "typhoon": 0.9, "cyclone": 0.9, "tornado": 0.8, "storm": 0.7,
-    "flood": 0.8, "volcano": 0.9, "eruption": 0.9, "tsunami": 1.0, "wildfire": 0.8,
-    "breach": 0.75, "ransomware": 0.8, "famine": 0.85, "drought": 0.7, "evacuat": 0.85,
+    "collapse": 0.8, "resign": 0.7, "outbreak": 0.8, "crisis": 0.75,
+    "breach": 0.75, "ransomware": 0.8, "famine": 0.85,
+    # --- Finance / markets (NEW: primary focus for the invest bot) ---
+    # Strong signals (0.85)
+    "market crash": 0.85, "recession": 0.85, "trade war": 0.85, "tariff": 0.85,
+    "central bank": 0.85, "rate hike": 0.85, "rate cut": 0.85,
+    # Medium signals (0.75-0.8)
+    "stock market": 0.8, "bond yield": 0.8, "inflation": 0.78, "bitcoin": 0.78,
+    "crypto": 0.75, "oil": 0.75, "crude": 0.75, "bankruptcy": 0.75, "debt crisis": 0.8,
+    # Lighter signals (0.7)
+    "earnings": 0.7, "merger": 0.7, "acquisition": 0.7, "ipo": 0.7,
+    "commodity": 0.7, "interest rate": 0.7,
+    # Word boundaries (below) neutralise most short-token collisions: "oil"⊄"turmoil",
+    # "ipo"⊄"lollipop", "earnings"⊄"yearnings". Residual (long prefix): "crypto" still
+    # matches "cryptography"/"cryptic" (rare in these feeds) — accepted.
+    # --- Weather / natural disaster (demoted to neutral 0.4: still seen, not prioritized) ---
+    "earthquake": 0.4, "hurricane": 0.4, "typhoon": 0.4, "cyclone": 0.4,
+    "tornado": 0.4, "storm": 0.4, "flood": 0.4, "volcano": 0.4, "eruption": 0.4,
+    "tsunami": 0.4, "wildfire": 0.4, "drought": 0.4, "evacuat": 0.4,
 }
+
+# Matching mot-entier hybride (évite les collisions de sous-chaîne type
+# "war" ⊂ "warning" qui faisait remonter les alertes météo à 1.0) :
+#  - mots courts (≤5) → frontière des deux côtés `\bwar\b` : pas "warning",
+#    pas "turmoil"→"oil". On perd les pluriels rares (wars, coups) — acceptable.
+#  - mots/locutions longs (≥6) → frontière au début seulement `\bsanction` :
+#    garde les inflexions utiles (sanctions, attacked, elections, cryptocurrency).
+_HOT_PATTERNS = [
+    (re.compile(r"\b" + re.escape(w) + (r"\b" if len(w) <= 5 else r""), re.IGNORECASE), wt)
+    for w, wt in _HOT.items()
+]
 
 
 def _find_items(data) -> list[dict]:
@@ -104,10 +137,10 @@ def _coord(d: dict):
 
 
 def _salience(title: str, summary: str, raw: dict) -> float:
-    text = f"{title} {summary}".lower()
+    text = f"{title} {summary}"
     score = 0.4
-    for word, weight in _HOT.items():
-        if word in text:
+    for pat, weight in _HOT_PATTERNS:
+        if pat.search(text):
             score = max(score, weight)
     # honor an upstream risk score if Osiris provided one
     rs = raw.get("risk_score") or raw.get("severity_score")
