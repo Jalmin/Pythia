@@ -53,12 +53,15 @@ FEEDS = [
 ]
 
 # Words that raise an event's salience (drives auto-scan selection).
-# Matching is substring-based (`if word in text`), so only distinctive
-# tokens or multi-word phrases are used — never short ambiguous stems
-# (e.g. no bare "fed"/"rate"/"bond" which collide with federal/moderate/abandon).
+# Matching is word-boundary based (see _HOT_PATTERNS / _salience): short keys
+# (≤5) match whole-word only (`\bwar\b`, so no "warning"/"turmoil"); longer keys
+# match as a prefix (`\bsanction`, so "sanctions"/"attacked" still count). Add a
+# dedicated key when a war/finance term is a SUFFIX of a compound (e.g.
+# "airstrike" — `\bstrike` alone would miss it). Never bare "fed"/"rate"/"bond".
 _HOT = {
     # --- Geopolitics / breaking news (unchanged: this is the actualité focus) ---
-    "war": 1.0, "attack": 0.9, "strike": 0.8, "missile": 0.95, "killed": 0.85,
+    "war": 1.0, "attack": 0.9, "strike": 0.8, "airstrike": 0.85, "missile": 0.95,
+    "counterattack": 0.9, "killed": 0.85,
     "coup": 0.95, "invasion": 1.0, "nuclear": 1.0, "explosion": 0.8, "protest": 0.6,
     "riot": 0.7, "election": 0.7, "ceasefire": 0.85, "sanction": 0.7, "default": 0.7,
     "collapse": 0.8, "resign": 0.7, "outbreak": 0.8, "crisis": 0.75,
@@ -73,15 +76,9 @@ _HOT = {
     # Lighter signals (0.7)
     "earnings": 0.7, "merger": 0.7, "acquisition": 0.7, "ipo": 0.7,
     "commodity": 0.7, "interest rate": 0.7,
-    # Substring-collision notes for the bare single-word finance tokens above:
-    #   "oil"     -> also inside "turmoil"/"recoil"/"spoiled"; accepted: "turmoil"
-    #                in market copy is on-topic, others are rare in news headlines.
-    #   "crypto"  -> also inside "cryptography"/"cryptic"; both rare in finance feeds.
-    #   "ipo"     -> shortest/riskiest; inside "lollipop"/"hippo"; both extremely
-    #                unlikely in a markets/news headline, so kept as-is.
-    #   "earnings"-> inside "yearnings" (rare); "merger"/"crude"/"tariff"/
-    #                "recession"/"inflation"/"bitcoin"/"commodity" have no common
-    #                English collision.
+    # Word boundaries (below) neutralise most short-token collisions: "oil"⊄"turmoil",
+    # "ipo"⊄"lollipop", "earnings"⊄"yearnings". Residual (long prefix): "crypto" still
+    # matches "cryptography"/"cryptic" (rare in these feeds) — accepted.
     # --- Weather / natural disaster (demoted to neutral 0.4: still seen, not prioritized) ---
     "earthquake": 0.4, "hurricane": 0.4, "typhoon": 0.4, "cyclone": 0.4,
     "tornado": 0.4, "storm": 0.4, "flood": 0.4, "volcano": 0.4, "eruption": 0.4,
