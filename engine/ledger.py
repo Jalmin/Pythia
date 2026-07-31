@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from .calibration import MIN_BIN
 from .config import CONFIG
 from .models import Prediction, WorldBrief, now_ms
 
@@ -74,7 +75,8 @@ class Ledger:
             rec = {
                 "kind": "forecast", "id": p.id, "statement": p.statement,
                 "horizon": p.horizon, "probability": p.probability,
-                "base_probability": p.base_probability, "location": p.location,
+                "base_probability": p.base_probability,
+                "swarm_probability": p.swarm_probability, "location": p.location,
                 "reasoning": p.reasoning, "lat": p.lat, "lng": p.lng,
                 "split": p.split, "ts": p.ts,
                 "resolve_after": p.ts + HORIZON_MS.get(p.horizon, HORIZON_MS["week"]),
@@ -134,6 +136,41 @@ class Ledger:
                     if t not in seen:
                         seen.append(t)
         return seen[-cap:]
+
+    # ── raw calibration curve (learning source, NON-CIRCULAR) ──
+    def raw_calibration_curve(self) -> list[dict]:
+        """Bin resolved forecasts by their RAW swarm probability against outcome —
+        the non-circular learning source for the adaptive calibrator.
+
+        Keyed on `swarm_probability` (the consensus BEFORE calibration), with a
+        fallback to `probability` for records written before that field existed:
+        back then, `probability` WAS the raw consensus. This deliberately never
+        touches the post-calibration `probability` of new records, so the curve
+        never learns from the calibrator's own output. `scorecard()` stays on
+        `probability` (the published value) for the human-facing scorecard.
+
+        Per bin (5 buckets 0-20/.../80-100), keeps only bins with n >= MIN_BIN:
+        {lo, hi, avg_raw, observed, n}.
+        """
+        resolved = [(f, self.resolutions[fid]) for fid, f in self.forecasts.items()
+                    if fid in self.resolutions and self.resolutions[fid].get("outcome") is not None]
+        curve: list[dict] = []
+        for lo, hi in CAL_BINS:
+            rows: list[tuple[float, float]] = []
+            for f, r in resolved:
+                raw = f.get("swarm_probability")
+                if raw is None:                       # old record: probability WAS the raw consensus
+                    raw = f["probability"]
+                if lo <= raw < hi:
+                    rows.append((raw, r["outcome"]))
+            if len(rows) >= MIN_BIN:
+                curve.append({
+                    "lo": lo, "hi": min(hi, 1.0),
+                    "avg_raw": round(sum(x for x, _ in rows) / len(rows), 4),
+                    "observed": round(sum(o for _, o in rows) / len(rows), 4),
+                    "n": len(rows),
+                })
+        return curve
 
     # ── the scorecard ──
     def scorecard(self) -> dict:
