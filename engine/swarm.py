@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 
+from .calibration import _calibrate
 from .models import AgentView, Prediction, WorldBrief
 from .state import STATE
 
@@ -45,6 +46,18 @@ def _persona_weights() -> dict[str, float]:
             # brier 0.25 (coin-flip) -> 1.0, 0.10 -> 1.75, 0.50 -> 0.58
             out[name] = max(0.4, min(2.5, (0.25 + 0.10) / (s["brier"] + 0.10)))
     return out
+
+
+def _calibration_curve() -> list[dict]:
+    """Fetch the raw-probability calibration curve once per deliberation batch
+    (like `_persona_weights()`). The curve is learned on `swarm_probability`
+    (raw consensus) — never on the published `probability` — so calibrating the
+    output can never feed back into what it learns from. Never a blocker."""
+    try:
+        from .runtime import ledger
+        return ledger.raw_calibration_curve()
+    except Exception:  # noqa: BLE001 — calibration is a bonus, never a blocker
+        return []
 
 
 def _persona_messages(name: str, lens: str, brief_text: str, preds: list[Prediction]) -> list[dict]:
@@ -123,6 +136,7 @@ async def deliberate(oracle, brief: WorldBrief | None, predictions: list[Predict
     results = await asyncio.gather(*[_ask(oracle, n, l, brief_text, subset) for n, l in PERSONAS])
 
     weights = _persona_weights()
+    curve = _calibration_curve()   # learned on RAW swarm_probability — see calibration.py (non-circular)
     if weights:
         log.info("swarm weights (Brier-earned): %s",
                  {k: round(v, 2) for k, v in weights.items()})
@@ -138,7 +152,11 @@ async def deliberate(oracle, brief: WorldBrief | None, predictions: list[Predict
         if len(ps) >= 2:   # only let the council override the oracle when there's a real quorum
             pred.base_probability = pred.probability
             ws = [weights.get(v.name, 1.0) for v in views]
-            pred.probability = round(sum(w * p for w, p in zip(ws, ps)) / sum(ws), 2)
+            raw = round(sum(w * p for w, p in zip(ws, ps)) / sum(ws), 2)
+            # Learn the correction on the RAW consensus, publish the calibrated one.
+            # These two fields never cross — see the non-circularity box in calibration.py.
+            pred.swarm_probability = raw
+            pred.probability = _calibrate(raw, curve)
             pred.split = (max(ps) - min(ps)) >= _SPLIT_SPREAD
         enriched += 1
     log.info("swarm deliberated %d/%d forecasts across %d personas", enriched, len(subset), len(PERSONAS))
