@@ -14,6 +14,7 @@ import httpx
 
 from .config import CONFIG, HTTPX_VERIFY
 from .models import WorldEvent
+from .profiles import domain_for
 
 log = logging.getLogger("pythia.intake")
 
@@ -57,6 +58,15 @@ FEEDS = [
     ("/api/fmp-earnings", "fmp-earnings", "markets"),     # résultats grosses caps US — risk_score 70
     ("/api/fmp-news", "fmp-news", "markets"),             # news finance FMP — risk_score 65
 ]
+
+# Garde-fou anti-fuite (P3 review profils) : toute source de FEEDS non mappée dans
+# SOURCE_DOMAIN retombe sur DEFAULT_DOMAIN="presse". Inoffensif pour la finance (un
+# inconnu ne peut JAMAIS entrer en finance) mais un futur flux finance ajouté ici sans
+# entrée SOURCE_DOMAIN fuiterait en newsletter — on le crie au chargement.
+from .profiles import SOURCE_DOMAIN as _SOURCE_DOMAIN
+_unmapped = sorted({src for _, src, cat in FEEDS if src not in _SOURCE_DOMAIN and cat not in _SOURCE_DOMAIN})
+if _unmapped:
+    log.warning("FEEDS sources sans domaine explicite (→ défaut 'presse') : %s", _unmapped)
 
 # Words that raise an event's salience (drives auto-scan selection).
 # Matching is word-boundary based (see _HOT_PATTERNS / _salience): short keys
@@ -476,6 +486,11 @@ class OsirisIntake:
                             out.append(ev)
         except (httpx.HTTPError, ValueError) as e:
             log.debug("feed %s failed: %s", path, e)
+        # Central domain assignment: every event — whether built by _to_event or
+        # by a special builder (_markets_events, _gdacs_events, …) — is tagged
+        # here from its own source/category, so nothing downstream is untagged.
+        for ev in out:
+            ev.domain = domain_for(ev.source, ev.category)
         return out
 
     async def fetch(self, limit: int = 40) -> list[WorldEvent]:
