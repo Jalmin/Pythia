@@ -14,6 +14,7 @@ import httpx
 
 from .config import CONFIG, HTTPX_VERIFY
 from .models import WorldEvent
+from .profiles import domain_for
 
 log = logging.getLogger("pythia.intake")
 
@@ -476,6 +477,11 @@ class OsirisIntake:
                             out.append(ev)
         except (httpx.HTTPError, ValueError) as e:
             log.debug("feed %s failed: %s", path, e)
+        # Central domain assignment: every event — whether built by _to_event or
+        # by a special builder (_markets_events, _gdacs_events, …) — is tagged
+        # here from its own source/category, so nothing downstream is untagged.
+        for ev in out:
+            ev.domain = domain_for(ev.source, ev.category)
         return out
 
     async def fetch(self, limit: int = 40) -> list[WorldEvent]:

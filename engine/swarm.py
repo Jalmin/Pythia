@@ -48,14 +48,17 @@ def _persona_weights() -> dict[str, float]:
     return out
 
 
-def _calibration_curve() -> list[dict]:
+def _calibration_curve(profile: str | None = None) -> list[dict]:
     """Fetch the raw-probability calibration curve once per deliberation batch
     (like `_persona_weights()`). The curve is learned on `swarm_probability`
     (raw consensus) — never on the published `probability` — so calibrating the
-    output can never feed back into what it learns from. Never a blocker."""
+    output can never feed back into what it learns from. Never a blocker.
+
+    When `profile` is given, the curve is scoped to that profile's own resolved
+    history — so finance calibrates on finance, not on the newsletter."""
     try:
         from .runtime import ledger
-        return ledger.raw_calibration_curve()
+        return ledger.raw_calibration_curve(profile)
     except Exception:  # noqa: BLE001 — calibration is a bonus, never a blocker
         return []
 
@@ -124,9 +127,12 @@ async def _ask(oracle, name: str, lens: str, brief_text: str,
 
 
 async def deliberate(oracle, brief: WorldBrief | None, predictions: list[Prediction],
-                     on_stage=None) -> list[Prediction]:
+                     on_stage=None, profile: str | None = None) -> list[Prediction]:
     """Have the persona council weigh in; enrich each prediction with agent votes,
-    a consensus probability, and a `split` flag when they disagree sharply."""
+    a consensus probability, and a `split` flag when they disagree sharply.
+
+    `profile` scopes the calibration curve to that profile's own resolved history
+    (finance calibrates on finance). None keeps the global curve (retro-compat)."""
     if not predictions:
         return predictions
     subset = predictions[:_MAX_PREDS]
@@ -136,7 +142,7 @@ async def deliberate(oracle, brief: WorldBrief | None, predictions: list[Predict
     results = await asyncio.gather(*[_ask(oracle, n, l, brief_text, subset) for n, l in PERSONAS])
 
     weights = _persona_weights()
-    curve = _calibration_curve()   # learned on RAW swarm_probability — see calibration.py (non-circular)
+    curve = _calibration_curve(profile)   # per-profile RAW swarm_probability — see calibration.py (non-circular)
     if weights:
         log.info("swarm weights (Brier-earned): %s",
                  {k: round(v, 2) for k, v in weights.items()})

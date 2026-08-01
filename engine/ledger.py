@@ -76,7 +76,8 @@ class Ledger:
                 "kind": "forecast", "id": p.id, "statement": p.statement,
                 "horizon": p.horizon, "probability": p.probability,
                 "base_probability": p.base_probability,
-                "swarm_probability": p.swarm_probability, "location": p.location,
+                "swarm_probability": p.swarm_probability, "profile": p.profile,
+                "location": p.location,
                 "reasoning": p.reasoning, "lat": p.lat, "lng": p.lng,
                 "split": p.split, "ts": p.ts,
                 "resolve_after": p.ts + HORIZON_MS.get(p.horizon, HORIZON_MS["week"]),
@@ -138,7 +139,7 @@ class Ledger:
         return seen[-cap:]
 
     # ── raw calibration curve (learning source, NON-CIRCULAR) ──
-    def raw_calibration_curve(self) -> list[dict]:
+    def raw_calibration_curve(self, profile: Optional[str] = None) -> list[dict]:
         """Bin resolved forecasts by their RAW swarm probability against outcome —
         the non-circular learning source for the adaptive calibrator.
 
@@ -149,11 +150,18 @@ class Ledger:
         never learns from the calibrator's own output. `scorecard()` stays on
         `probability` (the published value) for the human-facing scorecard.
 
+        When `profile` is given, only that profile's resolved forecasts feed the
+        curve — so each profile calibrates on its OWN history (finance never
+        learns from the newsletter). Records predating profiles carry no profile
+        tag and are thus excluded from any profile-scoped curve; `profile=None`
+        keeps the global curve (retro-compat).
+
         Per bin (5 buckets 0-20/.../80-100), keeps only bins with n >= MIN_BIN:
         {lo, hi, avg_raw, observed, n}.
         """
         resolved = [(f, self.resolutions[fid]) for fid, f in self.forecasts.items()
-                    if fid in self.resolutions and self.resolutions[fid].get("outcome") is not None]
+                    if fid in self.resolutions and self.resolutions[fid].get("outcome") is not None
+                    and (profile is None or f.get("profile") == profile)]
         curve: list[dict] = []
         for lo, hi in CAL_BINS:
             rows: list[tuple[float, float]] = []
@@ -173,9 +181,13 @@ class Ledger:
         return curve
 
     # ── the scorecard ──
-    def scorecard(self) -> dict:
+    def scorecard(self, profile: Optional[str] = None) -> dict:
+        """Accuracy/calibration scorecard. When `profile` is given, only that
+        profile's resolved forecasts are considered; `profile=None` (default) is
+        the global scorecard (retro-compat)."""
         resolved = [(f, self.resolutions[fid]) for fid, f in self.forecasts.items()
-                    if fid in self.resolutions and self.resolutions[fid].get("outcome") is not None]
+                    if fid in self.resolutions and self.resolutions[fid].get("outcome") is not None
+                    and (profile is None or f.get("profile") == profile)]
         briers = [(f["probability"] - r["outcome"]) ** 2 for f, r in resolved]
         hits = [1 for f, r in resolved
                 if (f["probability"] >= 0.5) == (r["outcome"] >= 0.5)]

@@ -23,6 +23,7 @@ class WorldEvent(BaseModel):
     summary: str = ""
     category: str = "general"          # conflict | disaster | seismic | news | geopolitics ...
     source: str = "osiris"
+    domain: str = "presse"             # finance | presse | météo — set at intake via profiles.domain_for
     lat: Optional[float] = None
     lng: Optional[float] = None
     url: str = ""
@@ -65,6 +66,7 @@ class Prediction(BaseModel):
     swarm_probability: Optional[float] = None              # raw swarm consensus, pre-calibration — source d'apprentissage non-circulaire du calibrateur
     prev_probability: Optional[float] = None               # last run's probability for ~the same call (momentum)
     split: bool = False                 # True when the swarm disagrees sharply
+    profile: Optional[str] = None       # which prediction profile produced this (finance | newsletter | ...)
     brief_id: Optional[str] = None
     ts: int = Field(default_factory=now_ms)
 
