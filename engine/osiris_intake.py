@@ -59,6 +59,15 @@ FEEDS = [
     ("/api/fmp-news", "fmp-news", "markets"),             # news finance FMP — risk_score 65
 ]
 
+# Garde-fou anti-fuite (P3 review profils) : toute source de FEEDS non mappée dans
+# SOURCE_DOMAIN retombe sur DEFAULT_DOMAIN="presse". Inoffensif pour la finance (un
+# inconnu ne peut JAMAIS entrer en finance) mais un futur flux finance ajouté ici sans
+# entrée SOURCE_DOMAIN fuiterait en newsletter — on le crie au chargement.
+from .profiles import SOURCE_DOMAIN as _SOURCE_DOMAIN
+_unmapped = sorted({src for _, src, cat in FEEDS if src not in _SOURCE_DOMAIN and cat not in _SOURCE_DOMAIN})
+if _unmapped:
+    log.warning("FEEDS sources sans domaine explicite (→ défaut 'presse') : %s", _unmapped)
+
 # Words that raise an event's salience (drives auto-scan selection).
 # Matching is word-boundary based (see _HOT_PATTERNS / _salience): short keys
 # (≤5) match whole-word only (`\bwar\b`, so no "warning"/"turmoil"); longer keys
