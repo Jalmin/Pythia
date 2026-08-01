@@ -28,8 +28,12 @@ SOURCE_DOMAIN: dict[str, str] = {
     "markets": "finance",
     "crypto": "finance",
     "futures": "finance",
-    "polymarket": "finance",
-    "manifold": "finance",
+    # Polymarket/Manifold = marchés de prédiction à CONTENU MIXTE (politique, crypto,
+    # sport…). On ne peut pas les domainer par la source → domaine "odds" hors de tout
+    # profil : ingérés pour contexte, jamais cible de prédiction (sinon une élection
+    # Polymarket fuite en finance — constaté au smoke 2026-08-01). Per-item classifieur = plus tard.
+    "polymarket": "odds",
+    "manifold": "odds",
     # FMP paid finance feeds
     "fmp-econ": "finance",
     "fmp-earnings": "finance",
@@ -40,7 +44,7 @@ SOURCE_DOMAIN: dict[str, str] = {
     "wb-unemployment": "finance",
     "wb-poverty": "finance",
     # finance-flavoured categories
-    "market-odds": "finance",
+    "market-odds": "odds",
     "economy": "finance",
 
     # ── presse (geopolitics / news / society) ────────────────────────────
