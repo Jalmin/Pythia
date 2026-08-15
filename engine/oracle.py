@@ -113,7 +113,10 @@ class Oracle:
         return preds
 
     async def _chat(self, user: str) -> str:
-        return await self._complete([{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}], 1400)
+        # 6000, not 1400: the lab model is a reasoning model whose `reasoning` phase eats
+        # the budget before a single character of JSON is emitted. Measured 2026-08-14:
+        # 537 completion tokens spent thinking on a 24-token toy prompt.
+        return await self._complete([{"role": "system", "content": SYSTEM}, {"role": "user", "content": user}], 6000)
 
     async def _complete(self, messages: list[dict], max_tokens: int = 900, model: str | None = None) -> str:
         used_model = model or self.model
@@ -127,7 +130,18 @@ class Oracle:
         latency_ms = int((time.monotonic() - t0) * 1000)
         usage = data.get("usage") or {}
         _log_llm_usage(used_model, usage, latency_ms)
-        return data["choices"][0]["message"]["content"]
+        choice = data["choices"][0]
+        content = choice.get("message", {}).get("content")
+        if not content:
+            # Reasoning models spend the budget on `reasoning` first and return a NULL
+            # `content` when they hit the cap — finish_reason="length". Returning None
+            # here crashed the JSON parser and silently killed prediction generation
+            # for 11 days (2026-08-03 → 08-14). Never return None; make it loud instead.
+            log.warning("empty content from %s (finish_reason=%s, completion_tokens=%s) — "
+                        "raise max_tokens if this repeats", used_model,
+                        choice.get("finish_reason"), usage.get("completion_tokens"))
+            return ""
+        return content
 
     async def chat(self, question: str, brief, predictions, history=None) -> str:
         """Answer a free-form question grounded in EVERY live source + current predictions."""
@@ -161,16 +175,32 @@ class Oracle:
             f'FORECAST (made {made}, horizon "{forecast["horizon"]}", window closed {due}):\n'
             f'"{forecast["statement"]}"'
             + (f' — location: {forecast["location"]}' if forecast.get("location") else "") + "\n\n"
-            f"WORLD SIGNALS ARCHIVED DURING THE WINDOW:\n{lines}\n\n"
-            f"CURRENT WORLD SNAPSHOT (aftermath evidence):\n{current_brief[:2500]}\n\n"
-            "Did the forecast come true within its window? Judge strictly from the evidence above.\n"
+            f"EVIDENCE — a PARTIAL sample of signals archived during the window:\n{lines}\n\n"
+            f"CURRENT WORLD SNAPSHOT (aftermath):\n{current_brief[:2500]}\n\n"
+            "READ THIS BEFORE DECIDING. The evidence above is a narrow sample of a few news "
+            "feeds. It covers a tiny fraction of world events, and market prices are largely "
+            "absent from it. Most events that really happened will NOT appear here.\n\n"
+            "STEP 1 — does the evidence COVER THE SUBJECT of this forecast at all? (the same "
+            "instrument, the same place, the same institution, the same event).\n\n"
+            "STEP 2 — if the subject IS covered, you must decide, and you have enough to do so:\n"
+            '- "yes" — the evidence shows the predicted event occurred. Judge the MAIN predicted '
+            "event; a secondary clause left unverified does not by itself make it a no, but say "
+            "so in your sentence. Never infer from a typical trigger, from what would normally "
+            "have been published, or from a related but different event.\n"
+            '- "no" — the evidence shows a different outcome: a measured value on the wrong side '
+            "of the stated threshold, or a documented course of events that contradicts the "
+            "statement.\n\n"
+            "STEP 3 — if the subject is NOT covered, answer \"unclear\". **Absence of a signal is "
+            "NOT evidence that the event did not occur** — the feed simply did not watch it. "
+            'A wrong "no" corrupts the track record permanently, so never guess one. But do not '
+            'retreat to "unclear" when the evidence does bear on the subject: that would leave '
+            "the system unable to learn anything.\n\n"
             'Return ONLY JSON: {"verdict": "yes" | "no" | "unclear", '
-            '"evidence": "<one sentence citing the deciding signal>"}\n'
-            '"yes" only if the evidence clearly shows it happened; "no" if the window closed and the '
-            "evidence shows it did not (or an event that big would surely appear above and does not); "
-            '"unclear" only if the evidence genuinely cannot decide.'
+            '"evidence": "<one sentence naming the signal that decided, or stating what is missing>"}'
         )
-        sys = "You are a strict, impartial resolution judge for a forecasting system. Output strictly JSON."
+        sys = ("You are a strict, impartial resolution judge for a forecasting system. You never "
+               "infer an outcome you did not observe, and you never treat silence as a negative "
+               "result. Output strictly JSON.")
         text = await self._complete([{"role": "system", "content": sys},
                                      {"role": "user", "content": prompt}], 220,
                                     model=CONFIG.judge_model)

@@ -128,15 +128,25 @@ class Ledger:
         horizon = HORIZON_MS.get(f["horizon"], HORIZON_MS["week"])
         return now > f["resolve_after"] + GRACE * horizon
 
-    def window_events(self, start_ms: int, end_ms: int, cap: int = 40) -> list[str]:
-        """Top world signals archived during a forecast's window (evidence for the judge)."""
+    def window_events(self, start_ms: int, end_ms: int, cap: int = 80) -> list[str]:
+        """Top world signals archived during a forecast's window (evidence for the judge).
+
+        Over `cap` distinct signals the sample is spread EVENLY across the window
+        rather than truncated to the last ones. Keeping the tail (`seen[-cap:]`)
+        handed the judge only the end of a long window: a month-horizon forecast
+        was graded on its final hours, so an event occurring in week 1 was
+        invisible to the very judge that had to confirm it.
+        """
         seen: list[str] = []
         for b in self.briefs:
             if start_ms <= b["ts"] <= end_ms + 6 * 3_600_000:   # small slack after the window
                 for t in b.get("top_events", []):
                     if t not in seen:
                         seen.append(t)
-        return seen[-cap:]
+        if len(seen) <= cap:
+            return seen
+        step = len(seen) / cap
+        return [seen[int(i * step)] for i in range(cap)]   # chronological, whole-window
 
     # ── raw calibration curve (learning source, NON-CIRCULAR) ──
     def raw_calibration_curve(self, profile: Optional[str] = None) -> list[dict]:
