@@ -112,8 +112,11 @@ async def _ask(oracle, name: str, lens: str, brief_text: str,
     # (unparseable) reply — so if a pass yields zero votes, retry once compacted.
     for brief_cap in (2600, 1100):
         try:
+            # 4000, not 1300: same reasoning-model starvation as oracle._chat() — the
+            # model spends its budget in `reasoning` and returns empty content, leaving
+            # the persona voiceless and the consensus built on nothing. Measured 2026-08-14.
             text = await oracle._complete(_persona_messages(name, lens, brief_text[:brief_cap], preds),
-                                          max_tokens=1300, model=persona_model)
+                                          max_tokens=4000, model=persona_model)
         except Exception as e:  # noqa: BLE001
             log.warning("swarm persona %s (%s) failed: %s", name, used_model, e)
             return name, used_model, {}
